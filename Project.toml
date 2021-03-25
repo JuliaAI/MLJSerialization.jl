@@ -10,7 +10,7 @@ MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 
 [compat]
 JLSO = "2.1"
-MLJBase = "0.17.6"
+MLJBase = "0.18"
 MLJModelInterface = "0.4"
 julia = "1"
 
