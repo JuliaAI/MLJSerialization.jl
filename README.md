@@ -4,7 +4,7 @@
 | :-----------: | :------: |
 | [![Build status](https://github.com/JuliaAI/MLJSerialization.jl/workflows/CI/badge.svg)](https://github.com/JuliaAI/MLJSerialization.jl/actions)| [![codecov.io](http://codecov.io/github/JuliaAI/MLJSerialization.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaAI/MLJSerialization.jl?branch=master) |
 
-A package providing integration of [Serialization](https://www.openml.org) with the
+A package adding model serialization to the
 [MLJ](https://alan-turing-institute.github.io/MLJ.jl/dev/) machine
 learning framework.
 
@@ -42,6 +42,7 @@ mach2 = machine("my_machine.jlso")
 
 Xnew = selectrows(X, 1:3)
 predict_mode(mach2, Xnew)
+
 julia> predict_mode(mach2, Xnew)
 3-element CategoricalArrays.CategoricalArray{String,1,UInt32}:
  "setosa"
