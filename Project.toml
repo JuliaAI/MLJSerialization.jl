@@ -1,7 +1,7 @@
 name = "MLJSerialization"
 uuid = "17bed46d-0ab5-4cd4-b792-a5c4b8547c6d"
 authors = ["Anthony D. Blaom <anthony.blaom@gmail.com>"]
-version = "1.1.0"
+version = "1.1.1"
 
 [deps]
 IterationControl = "b3c1a2ee-3fec-4384-bf48-272ea71de57c"
@@ -13,7 +13,7 @@ MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 IterationControl = "0.3.1"
 JLSO = "2.1"
 MLJBase = "0.18"
-MLJModelInterface = "0.4"
+MLJModelInterface = "0.4, 1.0"
 julia = "1"
 
 [extras]
