@@ -8,8 +8,13 @@ struct Save{K}
 end
 
 # constructor:
-Save(filename="machine.jlso"; kwargs...) =
-    Save(filename, kwargs)
+function Save(filename="machine.jlso"; kwargs...)
+    if :filename in keys(kwargs)
+        error("`filename` is not a keyword argumnent of `Save`. "*
+              "Usage: `Save(filename::String; kwargs...)`. ")
+    end
+    return Save(filename, kwargs)
+end
 
 IterationControl.@create_docs(Save,
              header="Save(filename=\"machine.jlso\"; kwargs...)",
@@ -34,4 +39,3 @@ function IterationControl.update!(c::Save,
     MLJSerialization.save(filename, train_mach, c.kwargs...)
     return (filenumber=filenumber, )
 end
-

@@ -10,11 +10,12 @@ using ..DummyModel
 
 @testset "Save" begin
     X, y = make_dummy(N=8);
+    @test_throws Exception Save(filename="myfile.jlso")
     c = Save("serialization_test.jlso")
     m = machine(DummyIterativeModel(n=2), X, y)
     fit!(m, verbosity=0)
     state = @test_logs((:info, "Saving \"serialization_test1.jlso\". "),
-                       IC.update!(c, m, 1))
+                       IC.update!(c, m, 2))
     @test state.filenumber == 1
     m.model.n = 5
     fit!(m, verbosity=0)
