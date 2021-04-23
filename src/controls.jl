@@ -30,6 +30,7 @@ IterationControl.@create_docs(Save,
 function IterationControl.update!(c::Save,
                                   ic_model,
                                   verbosity,
+                                  n,
                                   state=(filenumber=0, ))
     filenumber = state.filenumber + 1
     root, suffix = splitext(c.filename)

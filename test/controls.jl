@@ -15,11 +15,11 @@ using ..DummyModel
     m = machine(DummyIterativeModel(n=2), X, y)
     fit!(m, verbosity=0)
     state = @test_logs((:info, "Saving \"serialization_test1.jlso\". "),
-                       IC.update!(c, m, 2))
+                       IC.update!(c, m, 2, 1))
     @test state.filenumber == 1
     m.model.n = 5
     fit!(m, verbosity=0)
-    state = IC.update!(c, m, 0, state)
+    state = IC.update!(c, m, 0, 2, state)
     @test state.filenumber == 2
     yhat = predict(IC.expose(m), X);
 
