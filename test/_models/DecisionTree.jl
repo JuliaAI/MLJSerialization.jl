@@ -3,8 +3,6 @@ export DecisionTreeClassifier, DecisionTreeRegressor
 import MLJBase
 import MLJBase: @mlj_model, metadata_pkg, metadata_model
 
-using MLJScientificTypes
-
 using CategoricalArrays
 
 import DecisionTree
@@ -207,13 +205,13 @@ metadata_pkg.((DecisionTreeClassifier, DecisionTreeRegressor),
               is_wrapper=false)
 
 metadata_model(DecisionTreeClassifier,
-               input=MLJBase.Table(Continuous, Count, OrderedFactor),
-               target=AbstractVector{<:MLJBase.Finite},
+               input=MLJModelInterface.Table(Continuous, Count, OrderedFactor),
+               target=AbstractVector{<:MLJModelInterface.Finite},
                weights=false,
                descr=DTC_DESCR)
 
 metadata_model(DecisionTreeRegressor,
-               input=MLJBase.Table(Continuous, Count, OrderedFactor),
-               target=AbstractVector{MLJBase.Continuous},
+               input=MLJModelInterface.Table(Continuous, Count, OrderedFactor),
+               target=AbstractVector{MLJModelInterface.Continuous},
                weights=false,
                descr=DTR_DESCR)
