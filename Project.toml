@@ -10,7 +10,7 @@ MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
 MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 
 [compat]
-IterationControl = "0.4"
+IterationControl = "0.4, 0.5"
 JLSO = "2.1"
 MLJBase = "0.18"
 MLJModelInterface = "0.4, 1.0"
