@@ -2,7 +2,7 @@
 
 | Linux | Coverage |
 | :-----------: | :------: |
-| [![Build status](https://github.com/JuliaAI/MLJSerialization.jl/workflows/CI/badge.svg)](https://github.com/JuliaAI/MLJSerialization.jl/actions)| [![codecov.io](http://codecov.io/github/JuliaAI/MLJSerialization.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaAI/MLJSerialization.jl?branch=master) |
+| [![Build status](https://github.com/JuliaAI/MLJSerialization.jl/workflows/CI/badge.svg)](https://github.com/JuliaAI/MLJSerialization.jl/actions)| [![codecov.io](http://codecov.io/github/JuliaAI/MLJSerialization.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaAI/MLJSerialization.jl?branch=dev) |
 
 A package adding model serialization to the
 [MLJ](https://alan-turing-institute.github.io/MLJ.jl/dev/) machine
