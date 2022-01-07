@@ -114,3 +114,60 @@ function machine(file::Union{String,IO}, args...; cache=true, kwargs...)
     mach.report = report
     return mach
 end
+
+############## NEW DIRECTION 
+
+wipecacheddata!(mach1::Machine, mach2::Machine) = 
+    mach1.cache = Base.structdiff(mach2.cache, NamedTuple{(:data,)})
+
+
+serializable_fitresult!(mach::Machine, fitresult, filename; kwargs) =
+    mach.fitresult = save(filename, mach.model, fitresult, kwargs...)
+
+# How I intend to deal with the various composite types: ensemble, tunedmodel etc...
+#serializable_fitresult!(mach::Machine{TunedModel}, fitresult, filename; kwargs) =
+#    nothing
+
+saveable_report!(mach::Machine, report, filename, kwargs...) =
+    mach.report = report
+
+saveable_report!(mach::Machine, report, filename, kwargs...) =
+    mach.report = report
+
+function saveable_report!(mach::Machine{<:MLJBase.Composite}, report, filename, kwargs...)
+    submachines = Machine[]
+    report_given_submachines = LittleDict()
+    for (submach, subreport) in report.machines
+        copy_submachine = saveable_machine(filename, submach; kwargs...)
+        push!(submachines, copy_submachine)
+        # Maybe the is going wrong if the submachine itself is a composite, consider:
+        # saveable_report!(mach::Machine{<:MLJBase.Composite}, report, filename, kwargs...)
+        report_given_submachines[copy_submachine] = copy_submachine.report
+    end
+
+    mach.report = (machines=submachines, report_given_machine=report_given_submachines, )
+end
+
+function saveable_machine(filename, mach::Machine; kwargs...)
+    copymach = machine(mach.model, mach.args..., cache=mach.cache)
+
+    for fieldname in fieldnames(Machine)
+        if fieldname ∈ (:model, args)
+            continue
+        # Wipe data from cache
+        elseif fieldname == :cache 
+            wipecacheddata!(copymach, mach)
+        # Wipe data from data
+        elseif fieldname ∈ (:data, :resampled_data)
+            setfield!(copymach, fieldname, ())
+        # Make fitresult ready for serialization
+        elseif fieldname == :fitresult
+            serializable_fitresult!(copymach, getfield(mach, fieldname), filename, kwargs...)
+        elseif fieldname == :report
+            saveable_report!(copymach, mach.report, filename, kwargs...)
+        else
+            setfield!(copymach, fieldname, getfield(mach, fieldname))
+        end
+    end
+
+end
