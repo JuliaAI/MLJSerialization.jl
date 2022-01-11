@@ -2,7 +2,7 @@ using JLSO
 import MLJModelInterface: save, restore
 import MLJBase: Machine, machine, Composite
 using OrderedCollections: LittleDict
-using MLJTuning
+
 
 ## SERIALIZATION
 
@@ -117,7 +117,10 @@ function machine(file::Union{String,IO}, args...; cache=true, kwargs...)
     return mach
 end
 
-############## NEW DIRECTION 
+
+###############################################################################
+#####                        CACHE MANAGEMENT                             #####
+###############################################################################
 
 newcache(cache::NamedTuple) = Base.structdiff(cache, NamedTuple{(:data,)})
 newcache(cache) = cache
@@ -126,28 +129,37 @@ wipe_cached_data!(mach1::Machine, mach2::Machine) =
     mach1.cache = newcache(mach2.cache)
 
 
-"""
-This method should be moved to https://github.com/JuliaAI/MLJTuning.jl
-The inconvenient is that there needs to be any such method in the various repo which grows the API size
-"""
-save(filename, model::MLJTuning.EitherTunedModel, fitresult::Machine, ; kwargs...) =
+###############################################################################
+#####             TO BE EXPORTED TO THEIR RESP MODULES                    #####
+###############################################################################
+
+using MLJTuning
+using MLJEnsembles
+
+
+save(filename, model::MLJTuning.EitherTunedModel, fitresult::Machine; kwargs...) =
     serializable(filename, fitresult, kwargs...)
 
-
-function saveable_report!(mach::Machine{<:Composite}, report, filename; kwargs...)
-    submachines = Machine[]
-    report_given_submachines = LittleDict()
-    for (submach, subreport) in report.report_given_machine
-        copy_submachine = serializable(filename, submach; kwargs...)
-        push!(submachines, copy_submachine)
-        # Maybe this is going wrong if the submachine itself is a composite, consider:
-        # saveable_report!(mach::Machine{<:MLJBase.Composite}, report, filename, kwargs...)
-        report_given_submachines[copy_submachine] = subreport
-    end
-    other_report_values = Base.structdiff(report, NamedTuple{(:machines, :report_given_machine)})
-    mach.report = (machines=submachines, report_given_machine=report_given_submachines, other_report_values...)
+function restore(filename, model::MLJTuning.EitherTunedModel, fitresult)
+    fitresult.fitresult = restore(filename, fitresult.model, fitresult.fitresult)
+    return fitresult
 end
 
+save(filename, model::MLJEnsembles.EitherEnsembleModel, fitresult; kwargs...) =
+    MLJEnsembles.WrappedEnsemble(
+        fitresult.atom,
+        [save(filename, fitresult.atom, fr, kwargs...) for fr in fitresult.ensemble]
+    )
+
+function restore(filename, model::MLJEnsembles.EitherEnsembleModel, fitresult)
+    return MLJEnsembles.WrappedEnsemble(
+        fitresult.atom,
+        [restore(filename, fitresult.atom, fr) for fr in fitresult.ensemble]
+    )
+end
+###############################################################################
+#####                         SERIALIZABLE                                #####
+###############################################################################
 
 """
 Returns a machine with the following properties:
@@ -254,4 +266,15 @@ function serializable(filename, mach::Machine{Composite}; kwargs...)
 
     return machine(mach.model, newsources...; newsignature...)
 
+end
+
+
+###############################################################################
+#####                           RESTORE                                   #####
+###############################################################################
+
+
+function restore!(mach::Machine, file)
+    mach.fitresult = restore(_filename(file), mach.model, mach.fitresult)
+    return mach
 end
