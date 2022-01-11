@@ -200,29 +200,37 @@ end
 
 @testset "Test serializable of composite machines" begin
     # Composite model with sub model composite itself and some C inside
+    filename = "stack_mach.jls"
     model = Stack(
         metalearner = DecisionTreeRegressor(), 
-        pipe = Pipeline(X -> coerce(X, :x₁=>Continuous), XGBoostRegressor),
+        xgboost = XGBoostRegressor(),
         tree = DecisionTreeRegressor())
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
 
-    smach = serializable("pipeline_mach.jls", mach)
+    smach = serializable(filename, mach)
+
+    @test smach.data == () != mach.data
+    @test smach.resampled_data == () != mach.resampled_data
+    check_unchanged_fields(mach, smach)
     # Check data has been wiped out from models at the first level of composition
-    for submach in smach.report.machines
+    @test length(machines(glb(smach))) == length(machines(glb(mach)))
+    for submach in machines(glb(smach))
         @test submach.data == ()
         @test submach.resampled_data == ()
         @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
     end
-    # Check data has been wiped out at the second level too
-    # The pipeline is itself a composite
-    pipe = smach.report.machines[2]
-    @test pipe isa Machine{<:DeterministicPipeline}
-    @test pipe.report.machines[1].data == ()
-    @test pipe.report.machines[1].resampled_data == ()
-    @test pipe.report.machines[1].cache === nothing
-    # Checking the fitresult of xgboost
-    @test pipe.report.machines[1].fitresult isa Vector
+
+    @test smach.fitresult isa MLJBase.CompositeFitresult
+
+    Serialization.serialize(filename, smach)
+    smach = Serialization.deserialize(filename)
+    restore!(smach, filename)
+
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test keys(fitted_params(smach)) == keys(fitted_params(mach))
+    @test keys(report(smach)) == keys(report(mach))
+
 end
 
 
