@@ -1,6 +1,8 @@
 using JLSO
 import MLJModelInterface: save, restore
-import MLJBase: Machine, machine
+import MLJBase: Machine, machine, Composite
+using OrderedCollections: LittleDict
+using MLJTuning
 
 ## SERIALIZATION
 
@@ -117,57 +119,139 @@ end
 
 ############## NEW DIRECTION 
 
-wipecacheddata!(mach1::Machine, mach2::Machine) = 
-    mach1.cache = Base.structdiff(mach2.cache, NamedTuple{(:data,)})
+newcache(cache::NamedTuple) = Base.structdiff(cache, NamedTuple{(:data,)})
+newcache(cache) = cache
+
+wipe_cached_data!(mach1::Machine, mach2::Machine) = 
+    mach1.cache = newcache(mach2.cache)
 
 
-serializable_fitresult!(mach::Machine, fitresult, filename; kwargs) =
-    mach.fitresult = save(filename, mach.model, fitresult, kwargs...)
+"""
+This method should be moved to https://github.com/JuliaAI/MLJTuning.jl
+The inconvenient is that there needs to be any such method in the various repo which grows the API size
+"""
+save(filename, model::MLJTuning.EitherTunedModel, fitresult::Machine, ; kwargs...) =
+    serializable(filename, fitresult, kwargs...)
 
-# How I intend to deal with the various composite types: ensemble, tunedmodel etc...
-#serializable_fitresult!(mach::Machine{TunedModel}, fitresult, filename; kwargs) =
-#    nothing
 
-saveable_report!(mach::Machine, report, filename, kwargs...) =
-    mach.report = report
-
-saveable_report!(mach::Machine, report, filename, kwargs...) =
-    mach.report = report
-
-function saveable_report!(mach::Machine{<:MLJBase.Composite}, report, filename, kwargs...)
+function saveable_report!(mach::Machine{<:Composite}, report, filename; kwargs...)
     submachines = Machine[]
     report_given_submachines = LittleDict()
-    for (submach, subreport) in report.machines
-        copy_submachine = saveable_machine(filename, submach; kwargs...)
+    for (submach, subreport) in report.report_given_machine
+        copy_submachine = serializable(filename, submach; kwargs...)
         push!(submachines, copy_submachine)
-        # Maybe the is going wrong if the submachine itself is a composite, consider:
+        # Maybe this is going wrong if the submachine itself is a composite, consider:
         # saveable_report!(mach::Machine{<:MLJBase.Composite}, report, filename, kwargs...)
-        report_given_submachines[copy_submachine] = copy_submachine.report
+        report_given_submachines[copy_submachine] = subreport
     end
-
-    mach.report = (machines=submachines, report_given_machine=report_given_submachines, )
+    other_report_values = Base.structdiff(report, NamedTuple{(:machines, :report_given_machine)})
+    mach.report = (machines=submachines, report_given_machine=report_given_submachines, other_report_values...)
 end
 
-function saveable_machine(filename, mach::Machine; kwargs...)
-    copymach = machine(mach.model, mach.args..., cache=mach.cache)
+
+"""
+Returns a machine with the following properties:
+- Data has been wiped out everywhere
+- All fitresults fields have been made serializable
+"""
+function serializable end
+
+
+"""
+    serializable(filename, mach::Machine; kwargs...)
+
+Default method to work on machines of simple models.
+"""
+function serializable(filename, mach::Machine; kwargs...)
+    copymach = machine(mach.model, mach.args..., cache=typeof(mach).parameters[2])
 
     for fieldname in fieldnames(Machine)
-        if fieldname ∈ (:model, args)
+        if fieldname ∈ (:model, :args)
             continue
         # Wipe data from cache
         elseif fieldname == :cache 
-            wipecacheddata!(copymach, mach)
+            wipe_cached_data!(copymach, mach)
         # Wipe data from data
         elseif fieldname ∈ (:data, :resampled_data)
             setfield!(copymach, fieldname, ())
         # Make fitresult ready for serialization
         elseif fieldname == :fitresult
-            serializable_fitresult!(copymach, getfield(mach, fieldname), filename, kwargs...)
-        elseif fieldname == :report
-            saveable_report!(copymach, mach.report, filename, kwargs...)
+            copymach.fitresult = save(_filename(filename), mach.model, getfield(mach, fieldname), kwargs...)
         else
             setfield!(copymach, fieldname, getfield(mach, fieldname))
         end
     end
+    return copymach
+end
+
+
+"""
+    serializable(filename, mach::Machine{Composite}; kwargs...)
+
+This is the method to work on machines of composite models. It will rebuild the learning network
+with sub-machines also serializable and data wiped out.
+"""
+function serializable(filename, mach::Machine{Composite}; kwargs...)
+    # THIS IS WIP: NOT WORKING
+    signature = MLJBase.signature(mach.fitresult)
+
+    operation_nodes = values(MLJBase._operation_part(signature))
+    report_nodes = values(MLJBase._report_part(signature))
+
+    W = glb(operation_nodes..., report_nodes...)
+
+    nodes_ = filter(nodes(W)) do N
+        !(N isa Source)
+    end
+    # instantiate node and machine dictionaries:
+    newnode_given_old =
+        IdDict{AbstractNode,AbstractNode}([old => source() for old in mach.args])
+    newsources = [newnode_given_old[s] for s in mach.args]
+    newoperation_node_given_old =
+        IdDict{AbstractNode,AbstractNode}()
+    newreport_node_given_old =
+        IdDict{AbstractNode,AbstractNode}()
+    newmach_given_old = IdDict{Machine,Machine}()
+
+    # build the new network, nodes are nicely ordered
+    for N in nodes_
+        # Retrieve the future node's ancestors
+        args = [newnode_given_old[arg] for arg in N.args]
+        if N.machine === nothing
+            newnode_given_old[N] = node(N.operation, args...)
+        else
+            # The same machine can be associated with multiple nodes?
+            if N.machine in keys(newmach_given_old)
+                m = newmach_given_old[N.machine]
+            else
+                m = serializable2(N.machine)
+                newmach_given_old[N.machine] = m
+            end
+            newnode_given_old[N] = N.operation(m, args...)
+        end
+        # Sort nodes according to: operation_node, report_node
+        if N in operation_nodes
+            newoperation_node_given_old[N] = newnode_given_old[N]
+        elseif N in report_nodes
+            newreport_node_given_old[N] = newnode_given_old[N]
+        end
+    end
+
+    newoperation_nodes = Tuple(newoperation_node_given_old[N] for N in
+            operation_nodes)
+    newreport_nodes = Tuple(newreport_node_given_old[N] for N in
+            report_nodes)
+    report_tuple =
+        NamedTuple{keys(_report_part(signature))}(newreport_nodes)
+    operation_tuple =
+        NamedTuple{keys(_operation_part(signature))}(newoperation_nodes)
+
+    newsignature = if isempty(report_tuple)
+                        operation_tuple
+                    else
+                        merge(operation_tuple, (report=report_tuple,))
+                    end
+
+    return machine(mach.model, newsources...; newsignature...)
 
 end
