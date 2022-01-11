@@ -1,8 +1,4 @@
-using MLJModelInterface
-using MLJBase
-using OrderedCollections
 
-import MLJModelInterface: save, restore
 
 
 ## SERIALIZATION
@@ -98,7 +94,7 @@ Not sure how to provide new arguments:
 """
 function machine(file::Union{String,IO}, args...)
     smach = deserialize(file)
-    restore!(smach)
+    restore!(smach, file)
 end
 
 
@@ -261,7 +257,6 @@ end
 
 
 function restore!(mach::Machine, file)
-    println("NOKKK")
     mach.fitresult = restore(_filename(file), mach.model, mach.fitresult)
     return mach
 end
