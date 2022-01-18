@@ -12,7 +12,10 @@ using .Models
 using MLJXGBoostInterface
 
 
-function check_unchanged_fields(mach₁, mach₂)
+function generic_tests(mach₁, mach₂)
+    @test mach₂.data == () != mach₁.data
+    @test mach₂.args == () != mach₁.args
+    @test mach₂.resampled_data == () != mach₁.resampled_data
     for field in (:state, :frozen, :model, :old_model, :old_upstream_state, :fit_okay)
         @test getfield(mach₁, field) == getfield(mach₂, field)
     end
@@ -29,13 +32,10 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     smach = serializable(filename, mach)
     @test smach.report == mach.report
     @test smach.fitresult isa Vector
-    @test smach.data == () != mach.data
-    @test smach.args == () != mach.args
-    @test smach.resampled_data == () != mach.resampled_data
     @test smach.cache === nothing === mach.cache
     @test typeof(smach).parameters[2] == typeof(mach).parameters[2]
     @test all(s isa Source for s in smach.args)
-    check_unchanged_fields(mach, smach)
+    generic_tests(mach, smach)
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
@@ -62,12 +62,9 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     smach = serializable(filename, mach)
     @test smach.report == mach.report
     @test smach.fitresult == mach.fitresult
-    @test smach.data == () != mach.data
-    @test smach.args == () != mach.args
-    @test smach.resampled_data == () != mach.resampled_data
     @test smach.cache === nothing === mach.cache
     @test all(s isa Source for s in smach.args)
-    check_unchanged_fields(mach, smach)
+    generic_tests(mach, smach)
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
@@ -102,15 +99,12 @@ end
     fit!(mach, rows=1:50)
     smach = serializable(filename, mach)
     @test smach.fitresult.fitresult isa Vector
-    @test smach.data == () != mach.data
-    @test smach.resampled_data == () != mach.resampled_data
-    @test smach.args == () != mach.args
     @test smach.report == mach.report
     # There is a machine in the cache, should I call `serializable` on it?
     for i in 1:length(mach.cache)-1
         @test mach.cache[i] == smach.cache[i]
     end
-    check_unchanged_fields(mach, smach)
+    generic_tests(mach, smach)
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
@@ -141,11 +135,8 @@ end
     fit!(mach, verbosity=0)
     smach = serializable(filename, mach)
     @test mach.cache == smach.cache
-    @test smach.data == () != mach.data
-    @test smach.resampled_data == () != mach.resampled_data
-    @test smach.args == () != mach.args
     @test smach.report === mach.report
-    check_unchanged_fields(mach, smach)
+    generic_tests(mach, smach)
     @test smach.fitresult isa MLJEnsembles.WrappedEnsemble
     @test smach.fitresult.atom == model.model
     for fr in smach.fitresult.ensemble 
@@ -188,10 +179,7 @@ end
 
     smach = serializable(filename, mach)
 
-    @test smach.data == () != mach.data
-    @test smach.resampled_data == () != mach.resampled_data
-    @test smach.args == () != mach.args
-    check_unchanged_fields(mach, smach)
+    generic_tests(mach, smach)
     # Check data has been wiped out from models at the first level of composition
     @test length(machines(glb(smach))) == length(machines(glb(mach)))
     for submach in machines(glb(smach))
@@ -232,10 +220,7 @@ end
 
     smach = serializable(filename, mach)
 
-    @test smach.data == () != mach.data
-    @test smach.resampled_data == () != mach.resampled_data
-    @test smach.args == () != mach.args
-    check_unchanged_fields(mach, smach)
+    generic_tests(mach, smach)
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
     @test keys(fitted_params(smach)) == keys(fitted_params(mach))
     @test keys(report(smach)) == keys(report(mach))
