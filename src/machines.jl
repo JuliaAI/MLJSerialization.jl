@@ -116,6 +116,14 @@ function setreport!(mach::Machine{<:Composite}, report)
     mach.report = merge(MLJBase.report(glb_node), MLJBase.report_additions(mach.fitresult))
 end
 
+function add_exception_nodes!(d::IdDict, nodes::Vararg{AbstractNode}) 
+    for node in nodes
+        if node isa MLJBase.ErrorNode
+            d[node] = node
+        end
+    end
+end
+
 ###############################################################################
 #####         PROBABLY TO BE EXPORTED TO THEIR RESP MODULES               #####
 ###############################################################################
@@ -160,12 +168,16 @@ function save(filename, model::Composite, fitresult; kwargs...)
 
     nodes_ = filter(x -> !(x isa Source), nodes(W))
 
-    # instantiate node and machine dictionaries:
+    # instantiate node dictionary with source nodes and exception nodes
+    # This supposes that exception nodes only occur in the signature otherwise we need 
+    # to to this differently
+    exception_nodes = [n => n for n in operation_nodes if n isa MLJBase.ErrorNode]
+    source_nodes = [old => source() for old in sources(W)]
     newnode_given_old =
-        IdDict{AbstractNode,AbstractNode}([old => source() for old in sources(W)])
-    
+        IdDict{AbstractNode,AbstractNode}(vcat(source_nodes, exception_nodes))
+    # Other useful mappings
     newoperation_node_given_old =
-        IdDict{AbstractNode,AbstractNode}()
+        IdDict{AbstractNode,AbstractNode}(exception_nodes)
     newreport_node_given_old =
         IdDict{AbstractNode,AbstractNode}()
     newmach_given_old = IdDict{Machine,Machine}()

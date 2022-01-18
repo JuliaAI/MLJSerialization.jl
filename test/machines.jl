@@ -176,7 +176,7 @@ end
 end
 
 @testset "Test serializable of composite machines" begin
-    # Composite model with sub model composite itself and some C inside
+    # Composite model with some C inside
     filename = "stack_mach.jls"
     X, y = simpledata()
     model = Stack(
@@ -222,7 +222,38 @@ end
     rm(filename)
 end
 
+@testset "Test serializable of pipeline" begin
+    # Composite model with some C inside
+    filename = "pipe_mach.jls"
+    X, y = simpledata()
+    pipe = (X -> coerce(X, :x₁=>Continuous)) |> DecisionTreeRegressor()
+    mach = machine(pipe, X, y)
+    fit!(mach, verbosity=0)
 
+    smach = serializable(filename, mach)
+
+    @test smach.data == () != mach.data
+    @test smach.resampled_data == () != mach.resampled_data
+    @test smach.args == () != mach.args
+    check_unchanged_fields(mach, smach)
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test keys(fitted_params(smach)) == keys(fitted_params(mach))
+    @test keys(report(smach)) == keys(report(mach))
+    # Check data has been wiped out from models at the first level of composition
+    @test length(machines(glb(smach))) == length(machines(glb(mach)))
+    for submach in machines(glb(smach))
+        @test submach.data == ()
+        @test submach.resampled_data == ()
+        @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
+    end
+
+    # End to end
+    MLJSerialization.save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+    @test predict(smach, X) == predict(mach, X)
+
+    rm(filename)
+end
 
 end # module
 
