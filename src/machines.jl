@@ -227,20 +227,20 @@ end
     serializable(filename, mach::Machine; kwargs...)
 
 Copies the state of the machine to make it serializable.
-    - Removes all data from caches dans data fields
+    - Removes all data from caches, args and data fields
     - Makes all `fitresults` serializable
 """
-function serializable(filename, mach::Machine; kwargs...)
-    copymach = machine(mach.model, mach.args..., cache=typeof(mach).parameters[2])
+function serializable(filename, mach::Machine{<:Any, C}; kwargs...) where C
+    copymach = machine(mach.model, mach.args..., cache=C)
 
     for fieldname in fieldnames(Machine)
-        if fieldname ∈ (:model, :args, :report)
+        if fieldname ∈ (:model, :report)
             continue
         # Wipe data from cache
         elseif fieldname == :cache 
             wipe_cached_data!(copymach, mach)
         # Wipe data from data
-        elseif fieldname ∈ (:data, :resampled_data)
+        elseif fieldname ∈ (:data, :resampled_data, :args)
             setfield!(copymach, fieldname, ())
         # Make fitresult ready for serialization
         elseif fieldname == :fitresult

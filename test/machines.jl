@@ -30,6 +30,7 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     @test smach.report == mach.report
     @test smach.fitresult isa Vector
     @test smach.data == () != mach.data
+    @test smach.args == () != mach.args
     @test smach.resampled_data == () != mach.resampled_data
     @test smach.cache === nothing === mach.cache
     @test typeof(smach).parameters[2] == typeof(mach).parameters[2]
@@ -62,6 +63,7 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     @test smach.report == mach.report
     @test smach.fitresult == mach.fitresult
     @test smach.data == () != mach.data
+    @test smach.args == () != mach.args
     @test smach.resampled_data == () != mach.resampled_data
     @test smach.cache === nothing === mach.cache
     @test all(s isa Source for s in smach.args)
@@ -102,6 +104,7 @@ end
     @test smach.fitresult.fitresult isa Vector
     @test smach.data == () != mach.data
     @test smach.resampled_data == () != mach.resampled_data
+    @test smach.args == () != mach.args
     @test smach.report == mach.report
     # There is a machine in the cache, should I call `serializable` on it?
     for i in 1:length(mach.cache)-1
@@ -140,6 +143,7 @@ end
     @test mach.cache == smach.cache
     @test smach.data == () != mach.data
     @test smach.resampled_data == () != mach.resampled_data
+    @test smach.args == () != mach.args
     @test smach.report === mach.report
     check_unchanged_fields(mach, smach)
     @test smach.fitresult isa MLJEnsembles.WrappedEnsemble
@@ -186,6 +190,7 @@ end
 
     @test smach.data == () != mach.data
     @test smach.resampled_data == () != mach.resampled_data
+    @test smach.args == () != mach.args
     check_unchanged_fields(mach, smach)
     # Check data has been wiped out from models at the first level of composition
     @test length(machines(glb(smach))) == length(machines(glb(mach)))
