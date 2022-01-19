@@ -12,11 +12,28 @@ using .Models
 using MLJXGBoostInterface
 
 
-function generic_tests(mach₁, mach₂)
+function test_args(mach)
+    # Check source nodes are empty if any
+    for arg in mach.args
+        if arg isa Source 
+            @test arg == source()
+        end
+    end
+end
+
+
+function test_data(mach₁, mach₂)
     @test mach₂.old_rows === nothing != mach₁.old_rows
     @test mach₂.data == () != mach₁.data
-    @test mach₂.args == () != mach₁.args
     @test mach₂.resampled_data == () != mach₁.resampled_data
+    if mach₂ isa NamedTuple
+        @test :data ∉ keys(mach₂.cache)
+    end
+end
+
+function generic_tests(mach₁, mach₂)
+    test_args(mach₂)
+    test_data(mach₁, mach₂)
     for field in (:state, :frozen, :model, :old_model, :old_upstream_state, :fit_okay)
         @test getfield(mach₁, field) == getfield(mach₂, field)
     end
@@ -33,9 +50,7 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     smach = serializable(filename, mach)
     @test smach.report == mach.report
     @test smach.fitresult isa Vector
-    @test smach.cache === nothing === mach.cache
-    @test typeof(smach).parameters[2] == typeof(mach).parameters[2]
-    @test all(s isa Source for s in smach.args)
+    @test typeof(smach) == typeof(mach)
     generic_tests(mach, smach)
 
     Serialization.serialize(filename, smach)
@@ -63,8 +78,6 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     smach = serializable(filename, mach)
     @test smach.report == mach.report
     @test smach.fitresult == mach.fitresult
-    @test smach.cache === nothing === mach.cache
-    @test all(s isa Source for s in smach.args)
     generic_tests(mach, smach)
 
     Serialization.serialize(filename, smach)
@@ -135,7 +148,6 @@ end
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
     smach = serializable(filename, mach)
-    @test mach.cache == smach.cache
     @test smach.report === mach.report
     generic_tests(mach, smach)
     @test smach.fitresult isa MLJEnsembles.WrappedEnsemble
@@ -239,6 +251,37 @@ end
     @test predict(smach, X) == predict(mach, X)
 
     rm(filename)
+end
+
+@testset "Test serializable of nested composite machines" begin
+    # Composite model with some C inside
+    filename = "nested stack_mach.jls"
+    X, y = simpledata()
+
+    pipe = (X -> coerce(X, :x₁=>Continuous)) |> DecisionTreeRegressor()
+    model = Stack(
+        metalearner = DecisionTreeRegressor(), 
+        pipe = pipe)
+    mach = machine(model, X, y)
+    fit!(mach, verbosity=0)
+
+    save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+
+    @test predict(smach, X) == predict(mach, X)
+
+    # Test data as been erased at the first and second level of composition
+    submachs = machines(glb(mach))
+    for (i, submach) in enumerate(machines(glb(smach)))
+        test_data(submachs[i], submach)
+        if submach isa Machine{<:Composite,}
+            test_data(submachs[i], submach)
+        end
+    end
+
+    rm(filename)
+
+
 end
 
 end # module
