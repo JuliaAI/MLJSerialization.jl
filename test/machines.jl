@@ -13,6 +13,7 @@ using MLJXGBoostInterface
 
 
 function generic_tests(mach₁, mach₂)
+    @test mach₂.old_rows === nothing != mach₁.old_rows
     @test mach₂.data == () != mach₁.data
     @test mach₂.args == () != mach₁.args
     @test mach₂.resampled_data == () != mach₁.resampled_data

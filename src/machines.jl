@@ -116,14 +116,6 @@ function setreport!(mach::Machine{<:Composite}, report)
     mach.report = merge(MLJBase.report(glb_node), MLJBase.report_additions(mach.fitresult))
 end
 
-function add_exception_nodes!(d::IdDict, nodes::Vararg{AbstractNode}) 
-    for node in nodes
-        if node isa MLJBase.ErrorNode
-            d[node] = node
-        end
-    end
-end
-
 ###############################################################################
 #####         PROBABLY TO BE EXPORTED TO THEIR RESP MODULES               #####
 ###############################################################################
@@ -254,6 +246,8 @@ function serializable(filename, mach::Machine{<:Any, C}; kwargs...) where C
         # Wipe data from data
         elseif fieldname ∈ (:data, :resampled_data, :args)
             setfield!(copymach, fieldname, ())
+        elseif fieldname == :old_rows
+            setfield!(copymach, :old_rows, nothing)
         # Make fitresult ready for serialization
         elseif fieldname == :fitresult
             copymach.fitresult = save(_filename(filename), mach.model, getfield(mach, fieldname), kwargs...)
