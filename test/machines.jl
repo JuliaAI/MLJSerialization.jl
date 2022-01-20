@@ -21,7 +21,6 @@ function test_args(mach)
     end
 end
 
-
 function test_data(mach₁, mach₂)
     @test mach₂.old_rows === nothing != mach₁.old_rows
     @test mach₂.data == () != mach₁.data
@@ -34,7 +33,8 @@ end
 function generic_tests(mach₁, mach₂)
     test_args(mach₂)
     test_data(mach₁, mach₂)
-    for field in (:state, :frozen, :model, :old_model, :old_upstream_state, :fit_okay)
+    @test mach₂.state == -1
+    for field in (:frozen, :model, :old_model, :old_upstream_state, :fit_okay)
         @test getfield(mach₁, field) == getfield(mach₂, field)
     end
 end
