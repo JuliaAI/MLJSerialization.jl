@@ -163,13 +163,11 @@ function save(filename, model::Composite, fitresult; kwargs...)
     # instantiate node dictionary with source nodes and exception nodes
     # This supposes that exception nodes only occur in the signature otherwise we need 
     # to to this differently
-    exception_nodes = [n => n for n in operation_nodes if n isa MLJBase.ErrorNode]
-    source_nodes = [old => source() for old in sources(W)]
     newnode_given_old =
-        IdDict{AbstractNode,AbstractNode}(vcat(source_nodes, exception_nodes))
+        IdDict{AbstractNode,AbstractNode}([old => source() for old in sources(W)])
     # Other useful mappings
     newoperation_node_given_old =
-        IdDict{AbstractNode,AbstractNode}(exception_nodes)
+        IdDict{AbstractNode,AbstractNode}()
     newreport_node_given_old =
         IdDict{AbstractNode,AbstractNode}()
     newmach_given_old = IdDict{Machine,Machine}()
