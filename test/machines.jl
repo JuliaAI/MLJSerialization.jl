@@ -47,7 +47,7 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     # Simple C based model with specific save method
     mach = machine(XGBoostRegressor(), X, y)
     fit!(mach, verbosity=0)
-    smach = serializable(filename, mach)
+    smach = serializable(mach)
     @test smach.report == mach.report
     @test smach.fitresult isa Vector
     @test typeof(smach) == typeof(mach)
@@ -55,34 +55,32 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
-    restore!(smach, filename)
+    restore!(smach)
 
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
     @test fitted_params(smach) isa NamedTuple
     @test report(smach) == report(mach)
 
-    rm("xgboost_mach.xgboost.model")
     rm(filename)
     # End to end
     MLJSerialization.save(filename, mach)
     smach = MLJSerialization.machine(filename)
     @test predict(smach, X) == predict(mach, X)
 
-    rm("xgboost_mach.xgboost.model")
     rm(filename)
 
     # Simple Pure julia model
     filename = "decisiontree.jls"
     mach = machine(DecisionTreeRegressor(), X, y)
     fit!(mach, verbosity=0)
-    smach = serializable(filename, mach)
+    smach = serializable(mach)
     @test smach.report == mach.report
     @test smach.fitresult == mach.fitresult
     generic_tests(mach, smach)
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
-    restore!(smach, filename)
+    restore!(smach)
 
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
     @test fitted_params(smach) isa NamedTuple
@@ -111,7 +109,7 @@ end
     )
     mach = machine(tuned_model, X, y)
     fit!(mach, rows=1:50)
-    smach = serializable(filename, mach)
+    smach = serializable(mach)
     @test smach.fitresult.fitresult isa Vector
     @test smach.report == mach.report
     # There is a machine in the cache, should I call `serializable` on it?
@@ -122,13 +120,12 @@ end
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
-    restore!(smach, filename)
+    restore!(smach)
 
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
     @test fitted_params(smach) isa NamedTuple
     @test report(smach) == report(mach)
 
-    rm("tuned_model.xgboost.model")
     rm(filename)
 
     # End to end
@@ -136,7 +133,6 @@ end
     smach = MLJSerialization.machine(filename)
     @test predict(smach, X) == predict(mach, X)
 
-    rm("tuned_model.xgboost.model")
     rm(filename)
 
 end
@@ -147,7 +143,7 @@ end
     model = EnsembleModel(model=XGBoostRegressor())
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
-    smach = serializable(filename, mach)
+    smach = serializable(mach)
     @test smach.report === mach.report
     generic_tests(mach, smach)
     @test smach.fitresult isa MLJEnsembles.WrappedEnsemble
@@ -158,7 +154,7 @@ end
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
-    restore!(smach, filename)
+    restore!(smach)
 
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
     @test fitted_params(smach) isa NamedTuple
@@ -166,7 +162,6 @@ end
     @test report(smach).oob_measurements isa Missing
     @test report(mach).oob_measurements isa Missing
 
-    rm("ensemble_mach.xgboost.model")
     rm(filename)
 
     # End to end
@@ -174,7 +169,6 @@ end
     smach = MLJSerialization.machine(filename)
     @test predict(smach, X) == predict(mach, X)
 
-    rm("ensemble_mach.xgboost.model")
     rm(filename)
 
 end
@@ -190,7 +184,7 @@ end
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
 
-    smach = serializable(filename, mach)
+    smach = serializable(mach)
 
     generic_tests(mach, smach)
     # Check data has been wiped out from models at the first level of composition
@@ -205,21 +199,19 @@ end
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
-    restore!(smach, filename)
+    restore!(smach)
 
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
     @test keys(fitted_params(smach)) == keys(fitted_params(mach))
     @test keys(report(smach)) == keys(report(mach))
 
     rm(filename)
-    rm("stack_mach.xgboost.model")
 
     # End to end
     MLJSerialization.save(filename, mach)
     smach = MLJSerialization.machine(filename)
     @test predict(smach, X) == predict(mach, X)
 
-    rm("stack_mach.xgboost.model")
     rm(filename)
 end
 
@@ -231,7 +223,7 @@ end
     mach = machine(pipe, X, y)
     fit!(mach, verbosity=0)
 
-    smach = serializable(filename, mach)
+    smach = serializable(mach)
 
     generic_tests(mach, smach)
     @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)

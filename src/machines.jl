@@ -1,12 +1,3 @@
-
-
-
-## SERIALIZATION
-
-# helper:
-_filename(file::IO) = string(rand(UInt))
-_filename(file::String) = splitext(file)[1]
-
 ###############################################################################
 #####                        SAVE AND RELOAD                              #####
 ###############################################################################
@@ -83,7 +74,7 @@ function save(file::Union{String,IO},
     isdefined(mach, :fitresult)  ||
         error("Cannot save an untrained machine. ")
 
-    smach = serializable(file, mach, kwargs...)
+    smach = serializable(mach, kwargs...)
 
     serialize(file, smach)
 end
@@ -94,7 +85,7 @@ Not sure how to provide new arguments:
 """
 function machine(file::Union{String,IO}, args...)
     smach = deserialize(file)
-    restore!(smach, file)
+    restore!(smach)
 end
 
 
@@ -124,32 +115,32 @@ using MLJTuning
 using MLJEnsembles
 
 
-MLJModelInterface.save(filename, model::MLJTuning.EitherTunedModel, fitresult::Machine; kwargs...) =
-    serializable(filename, fitresult, kwargs...)
+MLJModelInterface.save(model::MLJTuning.EitherTunedModel, fitresult::Machine; kwargs...) =
+    serializable(fitresult, kwargs...)
 
-function MLJModelInterface.restore(filename, model::MLJTuning.EitherTunedModel, fitresult)
-    fitresult.fitresult = restore(filename, fitresult.model, fitresult.fitresult)
+function MLJModelInterface.restore(model::MLJTuning.EitherTunedModel, fitresult)
+    fitresult.fitresult = restore(fitresult.model, fitresult.fitresult)
     return fitresult
 end
 
-MLJModelInterface.save(filename, model::MLJEnsembles.EitherEnsembleModel, fitresult; kwargs...) =
+MLJModelInterface.save(model::MLJEnsembles.EitherEnsembleModel, fitresult; kwargs...) =
     MLJEnsembles.WrappedEnsemble(
         fitresult.atom,
-        [save(filename, fitresult.atom, fr, kwargs...) for fr in fitresult.ensemble]
+        [save(fitresult.atom, fr, kwargs...) for fr in fitresult.ensemble]
     )
 
-function MLJModelInterface.restore(filename, model::MLJEnsembles.EitherEnsembleModel, fitresult)
+function MLJModelInterface.restore(model::MLJEnsembles.EitherEnsembleModel, fitresult)
     return MLJEnsembles.WrappedEnsemble(
         fitresult.atom,
-        [restore(filename, fitresult.atom, fr) for fr in fitresult.ensemble]
+        [restore(fitresult.atom, fr) for fr in fitresult.ensemble]
     )
 end
 
 
 """
-    save(filename, model::Composite, fitresult; kwargs...)
+    save(model::Composite, fitresult; kwargs...)
 """
-function save(filename, model::Composite, fitresult; kwargs...)
+function save(model::Composite, fitresult; kwargs...)
     # THIS IS WIP: NOT WORKING
     signature = MLJBase.signature(fitresult)
 
@@ -183,7 +174,7 @@ function save(filename, model::Composite, fitresult; kwargs...)
             if N.machine in keys(newmach_given_old)
                 m = newmach_given_old[N.machine]
             else
-                m = serializable(filename, N.machine)
+                m = serializable(N.machine)
                 m.args = Tuple(newnode_given_old[s] for s in N.machine.args)
                 newmach_given_old[N.machine] = m
             end
@@ -226,13 +217,13 @@ end
 
 
 """
-    serializable(filename, mach::Machine; kwargs...)
+    serializable(mach::Machine; kwargs...)
 
 Copies the state of the machine to make it serializable.
     - Removes all data from caches, args and data fields
     - Makes all `fitresults` serializable
 """
-function serializable(filename, mach::Machine{<:Any, C}; kwargs...) where C
+function serializable(mach::Machine{<:Any, C}; kwargs...) where C
     copymach = machine(mach.model, mach.args..., cache=C)
 
     for fieldname in fieldnames(Machine)
@@ -250,7 +241,7 @@ function serializable(filename, mach::Machine{<:Any, C}; kwargs...) where C
             setfield!(copymach, :old_rows, nothing)
         # Make fitresult ready for serialization
         elseif fieldname == :fitresult
-            copymach.fitresult = save(_filename(filename), mach.model, getfield(mach, fieldname), kwargs...)
+            copymach.fitresult = save(mach.model, getfield(mach, fieldname), kwargs...)
         else
             setfield!(copymach, fieldname, getfield(mach, fieldname))
         end
@@ -262,15 +253,15 @@ function serializable(filename, mach::Machine{<:Any, C}; kwargs...) where C
 end
 
 
-function restore!(mach::Machine, file)
-    mach.fitresult = restore(_filename(file), mach.model, mach.fitresult)
+function restore!(mach::Machine)
+    mach.fitresult = restore(mach.model, mach.fitresult)
     return mach
 end
 
-function restore!(mach::Machine{<:Composite}, file)
+function restore!(mach::Machine{<:Composite})
     glb_node = glb(mach)
     for submach in machines(glb_node)
-        restore!(submach, file)
+        restore!(submach)
     end
     return mach
 end
