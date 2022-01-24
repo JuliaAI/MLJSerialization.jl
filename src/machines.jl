@@ -240,6 +240,8 @@ function serializable(filename, mach::Machine{<:Any, C}; kwargs...) where C
     for fieldname in fieldnames(Machine)
         if fieldname ∈ (:model, :report)
             continue
+        elseif  fieldname == :state
+            setfield!(copymach, :state, -1)
         # Wipe data from cache
         elseif fieldname == :cache 
             wipe_cached_data!(copymach, mach)
