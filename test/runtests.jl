@@ -2,10 +2,5 @@ using Test
 
 include("_dummy_model.jl")
 
-@testset "machines" begin
-    include("machines.jl")
-end
+@test include("machines.jl")
 
-@testset "controls" begin
-    include("controls.jl")
-end
