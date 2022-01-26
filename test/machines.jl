@@ -9,7 +9,6 @@ using MLJEnsembles
 
 include(joinpath(@__DIR__, "_models", "models.jl"))
 using .Models
-using MLJXGBoostInterface
 
 
 function test_args(mach)
@@ -43,32 +42,6 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
 
 @testset "Test serializable method of simple machines" begin
     X, y = simpledata()
-    filename = "xgboost_mach.jls"
-    # Simple C based model with specific save method
-    mach = machine(XGBoostRegressor(), X, y)
-    fit!(mach, verbosity=0)
-    smach = serializable(mach)
-    @test smach.report == mach.report
-    @test smach.fitresult isa Vector
-    @test typeof(smach) == typeof(mach)
-    generic_tests(mach, smach)
-
-    Serialization.serialize(filename, smach)
-    smach = Serialization.deserialize(filename)
-    restore!(smach)
-
-    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
-    @test fitted_params(smach) isa NamedTuple
-    @test report(smach) == report(mach)
-
-    rm(filename)
-    # End to end
-    MLJSerialization.save(filename, mach)
-    smach = MLJSerialization.machine(filename)
-    @test predict(smach, X) == predict(mach, X)
-
-    rm(filename)
-
     # Simple Pure julia model
     filename = "decisiontree.jls"
     mach = machine(DecisionTreeRegressor(), X, y)
@@ -94,23 +67,22 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     @test predict(smach, X) == predict(mach, X)
 
     rm(filename)
-
 end
 
 
 @testset "Test TunedModel" begin
     filename = "tuned_model.jls"
     X, y = simpledata()
-    base_model = XGBoostRegressor()
+    base_model = DecisionTreeRegressor()
     tuned_model = TunedModel(
         model=base_model,
         tuning=Grid(),
-        range=[range(base_model, :num_round, values=[9,10,11])],
+        range=[range(base_model, :min_samples_split, values=[2,3,4])],
     )
     mach = machine(tuned_model, X, y)
-    fit!(mach, rows=1:50)
+    fit!(mach, rows=1:50, verbosity=0)
     smach = serializable(mach)
-    @test smach.fitresult.fitresult isa Vector
+    @test smach.fitresult isa Machine
     @test smach.report == mach.report
     # There is a machine in the cache, should I call `serializable` on it?
     for i in 1:length(mach.cache)-1
@@ -140,7 +112,7 @@ end
 @testset "Test serializable Ensemble machine" begin
     filename = "ensemble_mach.jls"
     X, y = simpledata()
-    model = EnsembleModel(model=XGBoostRegressor())
+    model = EnsembleModel(model=DecisionTreeRegressor())
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
     smach = serializable(mach)
@@ -148,9 +120,6 @@ end
     generic_tests(mach, smach)
     @test smach.fitresult isa MLJEnsembles.WrappedEnsemble
     @test smach.fitresult.atom == model.model
-    for fr in smach.fitresult.ensemble 
-        @test fr isa Vector
-    end
 
     Serialization.serialize(filename, smach)
     smach = Serialization.deserialize(filename)
@@ -179,8 +148,8 @@ end
     X, y = simpledata()
     model = Stack(
         metalearner = DecisionTreeRegressor(), 
-        xgboost = XGBoostRegressor(),
-        tree = DecisionTreeRegressor())
+        tree1 = DecisionTreeRegressor(min_samples_split=3),
+        tree2 = DecisionTreeRegressor())
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
 
