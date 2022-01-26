@@ -249,10 +249,8 @@ function serializable(mach::Machine{<:Any, C}; kwargs...) where C
         elseif fieldname == :args 
             setfield!(copymach, fieldname, ())
         # Let those fields undefined
-        elseif fieldname ∈ (:data, :resampled_data)
+        elseif fieldname ∈ (:data, :resampled_data, :old_rows)
             continue
-        elseif fieldname == :old_rows
-            setfield!(copymach, :old_rows, nothing)
         # Make fitresult ready for serialization
         elseif fieldname == :fitresult
             copymach.fitresult = save(mach.model, getfield(mach, fieldname), kwargs...)

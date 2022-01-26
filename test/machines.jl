@@ -20,18 +20,18 @@ function test_args(mach)
     end
 end
 
-function test_data(mach₁, mach₂)
-    @test mach₂.old_rows === nothing != mach₁.old_rows
-    @test !isdefined(mach₂, :data)
-    @test !isdefined(mach₂, :resampled_data)
-    if mach₂ isa NamedTuple
-        @test :data ∉ keys(mach₂.cache)
+function test_data(mach)
+    @test !isdefined(mach, :old_rows)
+    @test !isdefined(mach, :data)
+    @test !isdefined(mach, :resampled_data)
+    if mach isa NamedTuple
+        @test :data ∉ keys(mach.cache)
     end
 end
 
 function generic_tests(mach₁, mach₂)
     test_args(mach₂)
-    test_data(mach₁, mach₂)
+    test_data(mach₂)
     @test mach₂.state == -1
     for field in (:frozen, :model, :old_model, :old_upstream_state, :fit_okay)
         @test getfield(mach₁, field) == getfield(mach₂, field)
@@ -210,9 +210,7 @@ end
     # Check data has been wiped out from models at the first level of composition
     @test length(machines(glb(smach))) == length(machines(glb(mach)))
     for submach in machines(glb(smach))
-        @test !isdefined(submach, :data)
-        @test !isdefined(submach, :resampled_data)
-        @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
+        test_data(submach)
     end
 
     # End to end
@@ -241,11 +239,12 @@ end
     @test predict(smach, X) == predict(mach, X)
 
     # Test data as been erased at the first and second level of composition
-    submachs = machines(glb(mach))
-    for (i, submach) in enumerate(machines(glb(smach)))
-        test_data(submachs[i], submach)
-        if submach isa Machine{<:Composite,}
-            test_data(submachs[i], submach)
+    for submach in machines(glb(smach))
+        test_data(submach)
+        if submach isa Machine{<:Composite}
+            for subsubmach in machines(glb(submach))
+                test_data(subsubmach)
+            end
         end
     end
 
