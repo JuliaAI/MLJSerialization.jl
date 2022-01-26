@@ -99,15 +99,16 @@ end
 #####                           UTILITIES                                 #####
 ###############################################################################
 
-setcache!(mach1::Machine, mach2::Machine) = 
-    mach1.cache = mach2.cache
+maybe_serializable(val) = val
+maybe_serializable(val::Machine) = serializable(val)
 
-setcache!(mach1::Machine{<:Composite}, mach2::Machine{<:Composite}) = 
-    mach1.cache = Base.structdiff(mach2.cache, NamedTuple{(:data,)})
 
-setcache!(mach1::Machine{<:MLJTuning.EitherTunedModel}, mach2::Machine{<:MLJTuning.EitherTunedModel}) = 
-    mach1.cache = tuple(mach2.cache[1:end-1]..., serializable(mach2.cache[end]))
-
+serializable_cache(cache) = cache
+serializable_cache(cache::Tuple) = Tuple(maybe_serializable(val) for val in cache)
+function serializable_cache(cache::NamedTuple)
+    new_keys = filter(!=(:data), keys(cache))
+    return NamedTuple{new_keys}([maybe_serializable(cache[key]) for key in new_keys])
+end
 
 
 setreport!(mach::Machine, report) = 
@@ -245,7 +246,7 @@ function serializable(mach::Machine{<:Any, C}; kwargs...) where C
             setfield!(copymach, :state, -1)
         # Wipe data from cache
         elseif fieldname == :cache 
-            setcache!(copymach, mach)
+            setfield!(copymach, :cache, serializable_cache(mach.cache))
         elseif fieldname == :args 
             setfield!(copymach, fieldname, ())
         # Let those fields undefined
