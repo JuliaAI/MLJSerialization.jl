@@ -108,8 +108,9 @@ setreport!(mach::Machine, report) =
     setfield!(mach, :report, report)
 
 function setreport!(mach::Machine{<:Composite}, report)
-    glb_node = glb(mach)
-    mach.report = merge(MLJBase.report(glb_node), MLJBase.report_additions(mach.fitresult))
+    basereport = MLJBase.report(glb(mach))
+    report_additions = Base.structdiff(report, basereport)
+    mach.report = merge(basereport, report_additions)
 end
 
 ###############################################################################

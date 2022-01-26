@@ -149,7 +149,8 @@ end
     model = Stack(
         metalearner = DecisionTreeRegressor(), 
         tree1 = DecisionTreeRegressor(min_samples_split=3),
-        tree2 = DecisionTreeRegressor())
+        tree2 = DecisionTreeRegressor(),
+        measures=rmse)
     mach = machine(model, X, y)
     fit!(mach, verbosity=0)
 
@@ -163,6 +164,9 @@ end
         @test submach.resampled_data == ()
         @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
     end
+
+    # Testing extra report fields
+    @test smach.report.cv_report === mach.report.cv_report
 
     @test smach.fitresult isa MLJBase.CompositeFitresult
 
