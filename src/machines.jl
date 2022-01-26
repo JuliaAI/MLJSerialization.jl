@@ -83,9 +83,15 @@ end
 Not sure how to provide new arguments:
     - change mach.data?
 """
-function machine(file::Union{String,IO}, args...)
+function machine(file::Union{String, IO}, raw_arg1=nothing, raw_args...)
     smach = deserialize(file)
     restore!(smach)
+    if raw_arg1 !== nothing
+        args = source.((raw_arg1, raw_args...))
+        MLJBase.check(smach.model, args...; full=true)
+        smach.args = args
+    end
+    return smach
 end
 
 
@@ -240,9 +246,11 @@ function serializable(mach::Machine{<:Any, C}; kwargs...) where C
         # Wipe data from cache
         elseif fieldname == :cache 
             setcache!(copymach, mach)
-        # Wipe data from data
-        elseif fieldname ∈ (:data, :resampled_data, :args)
+        elseif fieldname == :args 
             setfield!(copymach, fieldname, ())
+        # Let those fields undefined
+        elseif fieldname ∈ (:data, :resampled_data)
+            continue
         elseif fieldname == :old_rows
             setfield!(copymach, :old_rows, nothing)
         # Make fitresult ready for serialization

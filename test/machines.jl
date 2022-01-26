@@ -22,8 +22,8 @@ end
 
 function test_data(mach₁, mach₂)
     @test mach₂.old_rows === nothing != mach₁.old_rows
-    @test mach₂.data == () != mach₁.data
-    @test mach₂.resampled_data == () != mach₁.resampled_data
+    @test !isdefined(mach₂, :data)
+    @test !isdefined(mach₂, :resampled_data)
     if mach₂ isa NamedTuple
         @test :data ∉ keys(mach₂.cache)
     end
@@ -65,6 +65,11 @@ simpledata(;n=100) = (x₁=rand(n),), rand(n)
     MLJSerialization.save(filename, mach)
     smach = MLJSerialization.machine(filename)
     @test predict(smach, X) == predict(mach, X)
+
+    # Try to reset the data
+    smach = MLJSerialization.machine(filename, X, y)
+    fit!(smach, verbosity=0)
+    @test predict(smach) == predict(mach)
 
     rm(filename)
 end
@@ -160,8 +165,8 @@ end
     # Check data has been wiped out from models at the first level of composition
     @test length(machines(glb(smach))) == length(machines(glb(mach)))
     for submach in machines(glb(smach))
-        @test submach.data == ()
-        @test submach.resampled_data == ()
+        @test !isdefined(submach, :data)
+        @test !isdefined(submach, :resampled_data)
         @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
     end
 
@@ -205,8 +210,8 @@ end
     # Check data has been wiped out from models at the first level of composition
     @test length(machines(glb(smach))) == length(machines(glb(mach)))
     for submach in machines(glb(smach))
-        @test submach.data == ()
-        @test submach.resampled_data == ()
+        @test !isdefined(submach, :data)
+        @test !isdefined(submach, :resampled_data)
         @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
     end
 
