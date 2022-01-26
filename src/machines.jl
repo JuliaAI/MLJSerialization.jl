@@ -93,11 +93,16 @@ end
 #####                           UTILITIES                                 #####
 ###############################################################################
 
-newcache(cache::NamedTuple) = Base.structdiff(cache, NamedTuple{(:data,)})
-newcache(cache) = cache
+setcache!(mach1::Machine, mach2::Machine) = 
+    mach1.cache = mach2.cache
 
-wipe_cached_data!(mach1::Machine, mach2::Machine) = 
-    mach1.cache = newcache(mach2.cache)
+setcache!(mach1::Machine{<:Composite}, mach2::Machine{<:Composite}) = 
+    mach1.cache = Base.structdiff(mach2.cache, NamedTuple{(:data,)})
+
+setcache!(mach1::Machine{<:MLJTuning.EitherTunedModel}, mach2::Machine{<:MLJTuning.EitherTunedModel}) = 
+    mach1.cache = tuple(mach2.cache[1:end-1]..., serializable(mach2.cache[end]))
+
+
 
 setreport!(mach::Machine, report) = 
     setfield!(mach, :report, report)
@@ -233,7 +238,7 @@ function serializable(mach::Machine{<:Any, C}; kwargs...) where C
             setfield!(copymach, :state, -1)
         # Wipe data from cache
         elseif fieldname == :cache 
-            wipe_cached_data!(copymach, mach)
+            setcache!(copymach, mach)
         # Wipe data from data
         elseif fieldname ∈ (:data, :resampled_data, :args)
             setfield!(copymach, fieldname, ())
