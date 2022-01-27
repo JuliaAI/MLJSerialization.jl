@@ -1,4 +1,3 @@
-import IterationControl
 
 # # SAVE
 
@@ -37,6 +36,6 @@ function IterationControl.update!(c::Save,
     filename = string(root, filenumber, suffix)
     train_mach = IterationControl.expose(ic_model)
     verbosity > 0 && @info "Saving \"$filename\". "
-    MLJSerialization.save(filename, train_mach, c.kwargs...)
+    save(filename, train_mach, c.kwargs...)
     return (filenumber=filenumber, )
 end

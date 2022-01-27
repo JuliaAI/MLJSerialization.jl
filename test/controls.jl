@@ -1,12 +1,15 @@
 module TestControls
 
+include("_dummy_model.jl")
+
 using Test
 using MLJSerialization
 using MLJBase
 using IterationControl
+using .DummyModel
+
 const IC = IterationControl
 
-using ..DummyModel
 
 @testset "Save" begin
     X, y = make_dummy(N=8);
@@ -30,6 +33,9 @@ using ..DummyModel
     train_mach = machine(DummyIterativeModel(n=5), X, y)
     fit!(train_mach, verbosity=0)
     @test yhat ≈ predict(train_mach, X)
+
+    rm("serialization_test1.jlso")
+    rm("serialization_test2.jlso")
 end
 
 end

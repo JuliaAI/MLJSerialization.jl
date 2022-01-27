@@ -1,68 +1,256 @@
 module TestMachines
 
+using Serialization
 using MLJSerialization
 using MLJBase
 using Test
+using MLJTuning
+using MLJEnsembles
 
 include(joinpath(@__DIR__, "_models", "models.jl"))
 using .Models
 
-@testset "serialization" begin
 
-    @test MLJSerialization._filename("mymodel.jlso") == "mymodel"
-    @test MLJSerialization._filename("mymodel.gz") == "mymodel"
-    @test MLJSerialization._filename("mymodel") == "mymodel"
+function test_args(mach)
+    # Check source nodes are empty if any
+    for arg in mach.args
+        if arg isa Source 
+            @test arg == source()
+        end
+    end
+end
 
-    model = DecisionTreeRegressor()
+function test_data(mach)
+    @test !isdefined(mach, :old_rows)
+    @test !isdefined(mach, :data)
+    @test !isdefined(mach, :resampled_data)
+    if mach isa NamedTuple
+        @test :data ∉ keys(mach.cache)
+    end
+end
 
-    X = (a = Float64[98, 53, 93, 67, 90, 68],
-         b = Float64[64, 43, 66, 47, 16, 66],)
-    Xnew = (a = Float64[82, 49, 16],
-            b = Float64[36, 13, 36],)
-    y =  [59.1, 28.6, 96.6, 83.3, 59.1, 48.0]
+function generic_tests(mach₁, mach₂)
+    test_args(mach₂)
+    test_data(mach₂)
+    @test mach₂.state == -1
+    for field in (:frozen, :model, :old_model, :old_upstream_state, :fit_okay)
+        @test getfield(mach₁, field) == getfield(mach₂, field)
+    end
+end
 
-    mach =machine(model, X, y)
-    filename = joinpath(@__DIR__, "machine.jlso")
-    io = IOBuffer()
-    @test_throws Exception MLJSerialization.save(io, mach; compression=:none)
+simpledata(;n=100) = (x₁=rand(n),), rand(n)
 
-    fit!(mach)
-    report = mach.report
-    pred = predict(mach, Xnew)
-    MLJSerialization.save(io, mach; compression=:none)
-    # Un-comment to update the `machine.jlso` file:
-    #MLJSerialization.save(filename, mach)
+@testset "Test serializable method of simple machines" begin
+    X, y = simpledata()
+    # Simple Pure julia model
+    filename = "decisiontree.jls"
+    mach = machine(DecisionTreeRegressor(), X, y)
+    fit!(mach, verbosity=0)
+    smach = serializable(mach)
+    @test smach.report == mach.report
+    @test smach.fitresult == mach.fitresult
+    generic_tests(mach, smach)
 
-    # test restoring data from filename:
-    m = machine(filename)
-    p = predict(m, Xnew)
-    @test m.model == model
-    @test m.report == report
-    @test p ≈ pred
-    m = machine(filename, X, y)
-    fit!(m)
-    p = predict(m, Xnew)
-    @test p ≈ pred
+    Serialization.serialize(filename, smach)
+    smach = Serialization.deserialize(filename)
+    restore!(smach)
 
-    # test restoring data from io:
-    seekstart(io)
-    m = machine(io)
-    p = predict(m, Xnew)
-    @test m.model == model
-    @test m.report == report
-    @test p ≈ pred
-    seekstart(io)
-    m = machine(io, X, y)
-    fit!(m)
-    p = predict(m, Xnew)
-    @test p ≈ pred
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test fitted_params(smach) isa NamedTuple
+    @test report(smach) == report(mach)
+
+    rm(filename)
+
+    # End to end
+    MLJSerialization.save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+    @test predict(smach, X) == predict(mach, X)
+
+    # Try to reset the data
+    smach = MLJSerialization.machine(filename, X, y)
+    fit!(smach, verbosity=0)
+    @test predict(smach) == predict(mach)
+
+    rm(filename)
+end
+
+
+@testset "Test TunedModel" begin
+    filename = "tuned_model.jls"
+    X, y = simpledata()
+    base_model = DecisionTreeRegressor()
+    tuned_model = TunedModel(
+        model=base_model,
+        tuning=Grid(),
+        range=[range(base_model, :min_samples_split, values=[2,3,4])],
+    )
+    mach = machine(tuned_model, X, y)
+    fit!(mach, rows=1:50, verbosity=0)
+    smach = serializable(mach)
+    @test smach.fitresult isa Machine
+    @test smach.report == mach.report
+    # There is a machine in the cache, should I call `serializable` on it?
+    for i in 1:length(mach.cache)-1
+        @test mach.cache[i] == smach.cache[i]
+    end
+    generic_tests(mach, smach)
+
+    Serialization.serialize(filename, smach)
+    smach = Serialization.deserialize(filename)
+    restore!(smach)
+
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test fitted_params(smach) isa NamedTuple
+    @test report(smach) == report(mach)
+
+    rm(filename)
+
+    # End to end
+    MLJSerialization.save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+    @test predict(smach, X) == predict(mach, X)
+
+    rm(filename)
 
 end
 
-@testset "errors for deserialized machines" begin
-    filename = joinpath(@__DIR__, "machine.jlso")
-    m = machine(filename)
-    @test_throws ArgumentError predict(m)
+@testset "Test serializable Ensemble machine" begin
+    filename = "ensemble_mach.jls"
+    X, y = simpledata()
+    model = EnsembleModel(model=DecisionTreeRegressor())
+    mach = machine(model, X, y)
+    fit!(mach, verbosity=0)
+    smach = serializable(mach)
+    @test smach.report === mach.report
+    generic_tests(mach, smach)
+    @test smach.fitresult isa MLJEnsembles.WrappedEnsemble
+    @test smach.fitresult.atom == model.model
+
+    Serialization.serialize(filename, smach)
+    smach = Serialization.deserialize(filename)
+    restore!(smach)
+
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test fitted_params(smach) isa NamedTuple
+    @test report(smach).measures == report(mach).measures
+    @test report(smach).oob_measurements isa Missing
+    @test report(mach).oob_measurements isa Missing
+
+    rm(filename)
+
+    # End to end
+    MLJSerialization.save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+    @test predict(smach, X) == predict(mach, X)
+
+    rm(filename)
+
+end
+
+@testset "Test serializable of composite machines" begin
+    # Composite model with some C inside
+    filename = "stack_mach.jls"
+    X, y = simpledata()
+    model = Stack(
+        metalearner = DecisionTreeRegressor(), 
+        tree1 = DecisionTreeRegressor(min_samples_split=3),
+        tree2 = DecisionTreeRegressor(),
+        measures=rmse)
+    mach = machine(model, X, y)
+    fit!(mach, verbosity=0)
+
+    smach = serializable(mach)
+
+    generic_tests(mach, smach)
+    # Check data has been wiped out from models at the first level of composition
+    @test length(machines(glb(smach))) == length(machines(glb(mach)))
+    for submach in machines(glb(smach))
+        @test !isdefined(submach, :data)
+        @test !isdefined(submach, :resampled_data)
+        @test submach.cache isa Nothing || :data ∉ keys(submach.cache)
+    end
+
+    # Testing extra report fields
+    @test smach.report.cv_report === mach.report.cv_report
+
+    @test smach.fitresult isa MLJBase.CompositeFitresult
+
+    Serialization.serialize(filename, smach)
+    smach = Serialization.deserialize(filename)
+    restore!(smach)
+
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test keys(fitted_params(smach)) == keys(fitted_params(mach))
+    @test keys(report(smach)) == keys(report(mach))
+
+    rm(filename)
+
+    # End to end
+    MLJSerialization.save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+    @test predict(smach, X) == predict(mach, X)
+
+    rm(filename)
+end
+
+@testset "Test serializable of pipeline" begin
+    # Composite model with some C inside
+    filename = "pipe_mach.jls"
+    X, y = simpledata()
+    pipe = (X -> coerce(X, :x₁=>Continuous)) |> DecisionTreeRegressor()
+    mach = machine(pipe, X, y)
+    fit!(mach, verbosity=0)
+
+    smach = serializable(mach)
+
+    generic_tests(mach, smach)
+    @test MLJBase.predict(smach, X) == MLJBase.predict(mach, X)
+    @test keys(fitted_params(smach)) == keys(fitted_params(mach))
+    @test keys(report(smach)) == keys(report(mach))
+    # Check data has been wiped out from models at the first level of composition
+    @test length(machines(glb(smach))) == length(machines(glb(mach)))
+    for submach in machines(glb(smach))
+        test_data(submach)
+    end
+
+    # End to end
+    MLJSerialization.save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+    @test predict(smach, X) == predict(mach, X)
+
+    rm(filename)
+end
+
+@testset "Test serializable of nested composite machines" begin
+    # Composite model with some C inside
+    filename = "nested stack_mach.jls"
+    X, y = simpledata()
+
+    pipe = (X -> coerce(X, :x₁=>Continuous)) |> DecisionTreeRegressor()
+    model = Stack(
+        metalearner = DecisionTreeRegressor(), 
+        pipe = pipe)
+    mach = machine(model, X, y)
+    fit!(mach, verbosity=0)
+
+    save(filename, mach)
+    smach = MLJSerialization.machine(filename)
+
+    @test predict(smach, X) == predict(mach, X)
+
+    # Test data as been erased at the first and second level of composition
+    for submach in machines(glb(smach))
+        test_data(submach)
+        if submach isa Machine{<:Composite}
+            for subsubmach in machines(glb(submach))
+                test_data(subsubmach)
+            end
+        end
+    end
+
+    rm(filename)
+
+
 end
 
 end # module
